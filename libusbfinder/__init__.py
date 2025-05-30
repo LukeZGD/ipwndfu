@@ -71,7 +71,7 @@ def apply_patches(binary, patches):
 
 def libusb1_path_internal():
     version = platform.mac_ver()[0]
-    processor = platform.processor()
+    processor = platform.mac_ver()[2]
 
     if version == '':
         # We're not running on a Mac.
