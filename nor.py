@@ -1,8 +1,9 @@
-import binascii, struct
+import binascii
+import struct
 
 NOR_SIZE = 0x100000
 
-class NorData():
+class NorData:
     def __init__(self, dump):
         assert len(dump) == NOR_SIZE
 
@@ -13,26 +14,29 @@ class NorData():
         self.firmware_offset = self.block_size * firmware_block
         self.firmware_length = self.block_size * firmware_block_count
         self.parts = [
-          dump[0:52],
-          dump[52:512],
-          dump[512:self.firmware_offset],
-          dump[self.firmware_offset:self.firmware_offset + self.firmware_length],
-          dump[self.firmware_offset + self.firmware_length:]
+            dump[0:52],
+            dump[52:512],
+            dump[512:self.firmware_offset],
+            dump[self.firmware_offset:self.firmware_offset + self.firmware_length],
+            dump[self.firmware_offset + self.firmware_length:]
         ]
 
         self.images = []
         offset = 0
-        while 1:
-            (magic, size) = struct.unpack('<4sI', self.parts[3][offset:offset+8])
-            if magic != 'Img3'[::-1] or size == 0:
+        while True:
+            header = self.parts[3][offset:offset + 8]
+            if len(header) < 8:
+                break
+            (magic, size) = struct.unpack('<4sI', header)
+            if magic != b'3gmI' or size == 0:
                 break
             self.images.append(self.parts[3][offset:offset + size])
             offset += size
 
     def dump(self):
-        # Replace self.parts[3] with content of self.images
-        all_images = ''.join(self.images)
-        all_images += '\xff' * (self.firmware_length - len(all_images))
+        # Reconstruct parts[3] from self.images
+        all_images = b''.join(self.images)
+        all_images += b'\xff' * (self.firmware_length - len(all_images))
         dump = self.parts[0] + self.parts[1] + self.parts[2] + all_images + self.parts[4]
         assert len(dump) == NOR_SIZE
         return dump
