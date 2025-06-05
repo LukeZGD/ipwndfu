@@ -4,7 +4,7 @@
 
 import binascii, datetime, getopt, hashlib, struct, sys, time
 import dfu, nor, utilities
-import alloc8, image3_24Kpwn, limera1n, SHAtter, steaks4uce
+import alloc8, image3_24Kpwn, limera1n
 from dfuexec import *
 
 def print_help():
@@ -47,14 +47,12 @@ if __name__ == '__main__':
             serial_number = device.serial_number
             dfu.release_device(device)
 
-            if 'CPID:8720' in serial_number:
-                steaks4uce.exploit()
-            elif 'CPID:8920' in serial_number:
+            if 'CPID:8920' in serial_number:
                 limera1n.exploit()
             elif 'CPID:8922' in serial_number:
                 limera1n.exploit()
             elif 'CPID:8930' in serial_number:
-                SHAtter.exploit()
+                limera1n.exploit()
             else:
                 print 'Found:', serial_number
                 print 'ERROR: This device is not supported.'
@@ -127,15 +125,6 @@ if __name__ == '__main__':
             dump = device.read_memory(address, length)
             print utilities.hex_dump(dump, address),
 
-        if opt == '--dump-rom':
-            device = PwnedDFUDevice()
-            securerom = device.securerom_dump()
-            filename = 'SecureROM-%s-RELEASE.dump' % device.config.version
-            f = open(filename, 'wb')
-            f.write(securerom)
-            f.close()
-            print 'SecureROM dumped to file:', filename
-
         if opt == '--dump-nor':
             device = PwnedDFUDevice()
             if device.config.cpid != '8920':
@@ -162,32 +151,6 @@ if __name__ == '__main__':
                 sys.exit(1)
             device.nor_dump(saveBackup=True)
             device.flash_nor(new_nor)
-
-        if opt == '--24kpwn':
-            print '*** based on 24Kpwn exploit (segment overflow) by chronic, CPICH, ius, MuscleNerd, Planetbeing, pod2g, posixninja, et al. ***'
-
-            device = PwnedDFUDevice()
-            if device.config.version != '359.3':
-                print 'Only iPhone 3GS (old bootrom) is supported.'
-                sys.exit(1)
-
-            dump = device.nor_dump(saveBackup=True)
-
-            print 'Preparing modified NOR with 24Kpwn exploit.'
-            nor = nor.NorData(dump)
-            for byte in nor.parts[1]:
-                if byte != '\x00':
-                    print 'ERROR: Bytes following IMG2 header in NOR are not zero. alloc8 exploit was likely previously installed. Exiting.'
-                    sys.exit(1)
-            if len(nor.images) == 0:
-                print 'ERROR: 24Kpwn exploit cannot be installed, because NOR has no valid LLB. Exiting.'
-                sys.exit(1)
-
-            # Remove existing 24Kpwn exploit.
-            if len(nor.images[0]) > 0x24000:
-                nor.images[0] = image3_24Kpwn.remove_exploit(nor.images[0])
-            nor.images[0] = image3_24Kpwn.exploit(nor.images[0], device.securerom_dump())
-            device.flash_nor(nor.dump())
 
         if opt == '--remove-24kpwn':
             device = PwnedDFUDevice()

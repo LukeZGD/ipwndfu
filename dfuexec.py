@@ -149,13 +149,6 @@ class PwnedDFUDevice():
         assert exec_cleared == 0
         return (retval, received[8:8 + receiveLength])
 
-    def securerom_dump(self):
-        securerom = self.read_memory(self.config.rom_address, self.config.rom_size)
-        if hashlib.sha256(securerom).hexdigest() != self.config.rom_sha256:
-            print 'ERROR: SecureROM was dumped, but the SHA256 hash does not match. Exiting.'
-            sys.exit(1)
-        return securerom
-
     def aes(self, data, action, key):
         if len(data) % AES_BLOCK_SIZE != 0:
             print 'ERROR: Length of data for AES encryption/decryption must be a multiple of %s.' % AES_BLOCK_SIZE
