@@ -10,6 +10,12 @@ class VersionConfig:
 
 configs = [
     VersionConfig(
+        version='14.0',
+        bottle='libusb-1.0.28.sonoma.bottle',
+        bottle_sha256='1f2de0243e7dd67d4cf6c5fde24fa146db8681d287ad6db6af45d6dc544f36c8',
+        dylib_patches=[],
+        dylib_sha256='4eb8d2cb5a75a84a3a038d168b643b1aa19a3f319955c9b71ea70eb5355f624d'),
+    VersionConfig(
         version='10.14',
         bottle='libusb-1.0.22.mojave.bottle',
         bottle_sha256='6accd1dfe6e66c30aac825ad674e9c7a48b752bcf84561e9e2d397ce188504ff',
@@ -65,9 +71,23 @@ def apply_patches(binary, patches):
 
 def libusb1_path_internal():
     version = platform.mac_ver()[0]
+    processor = platform.mac_ver()[2]
+
     if version == '':
         # We're not running on a Mac.
         return None
+
+    # HACK to support macOS 10.15 and newer
+    versions = ['10.8', '10.9', '10.10', '10.11', '10.12', '10.13', '10.14']
+    hack = True
+    for x in versions:
+        if version.startswith(x):
+            version = x
+            hack = False
+    if hack == True:
+        version = '10.14'
+    if processor != 'x86_64':
+        version = '14.0'
 
     for config in configs:
         if version.startswith(config.version):

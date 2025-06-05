@@ -68,11 +68,11 @@ if __name__ == '__main__':
 
             if device.config.version == '359.3':
                 print 'WARNING: iPhone 3GS (old bootrom) was detected. Use 24Kpwn exploit for faster boots, alloc8 exploit is for testing purposes only.'
-                raw_input("Press ENTER to continue.")
+                sys.exit(0)
 
             print 'Installing alloc8 exploit to NOR.'
 
-            dump = device.nor_dump(saveBackup=True)
+            dump = device.nor_dump(saveBackup=False)
 
             nor = nor.NorData(dump)
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
             device.flash_nor(new_nor)
 
         if opt == '--24kpwn':
-            print '*** based on 24Kpwn exploit (segment overflow) by the iPhone Dev Team ***'
+            print '*** based on 24Kpwn exploit (segment overflow) by chronic, CPICH, ius, MuscleNerd, Planetbeing, pod2g, posixninja, et al. ***'
 
             device = PwnedDFUDevice()
             if device.config.version != '359.3':

@@ -7,7 +7,7 @@ MAX_PACKET_SIZE = 0x4000
 
 def acquire_device(timeout=10):
     backend = usb.backend.libusb1.get_backend(find_library=lambda x:libusbfinder.libusb1_path())
-    #print 'Acquiring device handle',
+    print 'Acquiring device handle.'
     start = time.time()
     # Keep retrying for up to timeout seconds if device is not found.
     while time.time() - start < timeout:
@@ -20,7 +20,7 @@ def acquire_device(timeout=10):
     sys.exit(1)
 
 def release_device(device):
-    #print 'Releasing device handle.'
+    print 'Releasing device handle.'
     usb.util.dispose_resources(device)
 
 def send_command(device, command):
@@ -28,7 +28,7 @@ def send_command(device, command):
     device.ctrl_transfer(0x40, 0, 0, 0, command + '\x00', 30000)
 
 def send_data(device, data):
-    #print 'Sending 0x%x of data to device.' % len(data)
+    print 'Sending 0x%x of data to device.' % len(data)
     assert device.ctrl_transfer(0x41, 0, 0, 0, 0, 1000) == 0
     index = 0
     while index < len(data):
