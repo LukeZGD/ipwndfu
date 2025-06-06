@@ -4,38 +4,24 @@
 
 import binascii, datetime, getopt, hashlib, struct, sys, time
 import dfu, nor, utilities
-import alloc8, image3_24Kpwn, limera1n
+import alloc8, image3_24Kpwn
 from dfuexec import *
 
 def print_help():
     print('USAGE: ipwndfu [options]')
     print('Interact with an iOS device in DFU Mode.\n')
     print('Basic options:')
-    print('  -p\t\t\t\tUSB exploit for pwned DFU Mode')
     print('  -x\t\t\t\tinstall alloc8 exploit to NOR')
-    print('  -f file\t\t\tsend file to device in DFU Mode')
     print('Advanced options:')
-    print('  --dump=address,length\t\tdump memory to stdout')
-    print('  --hexdump=address,length\thexdump memory to stdout')
-    print('  --dump-rom\t\t\tdump SecureROM')
     print('  --dump-nor=file\t\tdump NOR to file')
     print('  --flash-nor=file\t\tflash NOR (header and firmware only) from file')
-    print('  --24kpwn\t\t\tinstall 24Kpwn exploit to NOR')
     print('  --remove-24kpwn\t\tremove 24Kpwn exploit from NOR')
     print('  --remove-alloc8\t\tremove alloc8 exploit from NOR')
-    print('  --decrypt-gid=hexdata\t\tAES decrypt with GID key')
-    print('  --encrypt-gid=hexdata\t\tAES encrypt with GID key')
-    print('  --decrypt-uid=hexdata\t\tAES decrypt with UID key')
-    print('  --encrypt-uid=hexdata\t\tAES encrypt with UID key')
 
 if __name__ == '__main__':
     try:
-        advanced = [
-            'dump=', 'hexdump=', 'dump-rom', 'dump-nor=', 'flash-nor=',
-            '24kpwn', 'remove-24kpwn', 'remove-alloc8',
-            'decrypt-gid=', 'encrypt-gid=', 'decrypt-uid=', 'encrypt-uid='
-        ]
-        opts, args = getopt.getopt(sys.argv[1:], 'pxf:', advanced)
+        advanced = ['dump-nor=', 'flash-nor=', 'remove-24kpwn', 'remove-alloc8']
+        opts, args = getopt.getopt(sys.argv[1:], 'x', advanced)
     except getopt.GetoptError:
         print('ERROR: Invalid arguments provided.')
         print_help()
@@ -46,27 +32,12 @@ if __name__ == '__main__':
         sys.exit(2)
 
     for opt, arg in opts:
-        if opt == '-p':
-            device = dfu.acquire_device()
-            serial_number = device.serial_number
-            dfu.release_device(device)
-
-            if 'CPID:8920' in serial_number or 'CPID:8922' in serial_number or 'CPID:8930' in serial_number:
-                limera1n.exploit()
-            else:
-                print('Found:', serial_number)
-                print('ERROR: This device is not supported.')
-                sys.exit(1)
-
         if opt == '-x':
             device = PwnedDFUDevice()
-            if device.config.cpid != '8920':
-                print('This is not a compatible device. alloc8 exploit is for iPhone 3GS only.')
-                sys.exit(1)
 
             if device.config.version == '359.3':
                 print('WARNING: iPhone 3GS (old bootrom) was detected. Use 24Kpwn exploit for faster boots, alloc8 exploit is for testing purposes only.')
-                sys.exit(0)
+                input("Press ENTER to continue.")
 
             print('Installing alloc8 exploit to NOR.')
 
@@ -88,40 +59,8 @@ if __name__ == '__main__':
 
             device.flash_nor(new_nor.dump())
 
-        if opt == '-f':
-            try:
-                with open(arg, 'rb') as f:
-                    data = f.read()
-            except IOError:
-                print('ERROR: Could not read file:', arg)
-                sys.exit(1)
-
-            device = dfu.acquire_device()
-            dfu.reset_counters(device)
-            dfu.send_data(device, data)
-            dfu.request_image_validation(device)
-            dfu.release_device(device)
-
-        if opt == '--dump' or opt == '--hexdump':
-            if arg.count(',') != 1:
-                print('ERROR: You must provide exactly 2 comma separated values: address,length')
-                sys.exit(1)
-            raw_address, raw_length = arg.split(',')
-            address = int(raw_address, 16) if raw_address.startswith('0x') else int(raw_address)
-            length = int(raw_length, 16) if raw_length.startswith('0x') else int(raw_length)
-
-            device = PwnedDFUDevice()
-            dump = device.read_memory(address, length)
-            if opt == '--dump':
-                print(dump)
-            else:
-                print(utilities.hex_dump(dump, address), end='')
-
         if opt == '--dump-nor':
             device = PwnedDFUDevice()
-            if device.config.cpid != '8920':
-                print('This is not a compatible device. Dumping NOR is only supported on iPhone 3GS.')
-                sys.exit(1)
             nor_data = device.nor_dump(saveBackup=False)
             with open(arg, 'wb') as f:
                 f.write(nor_data)
@@ -136,17 +75,11 @@ if __name__ == '__main__':
                 sys.exit(1)
 
             device = PwnedDFUDevice()
-            if device.config.cpid != '8920':
-                print('This is not a compatible device. Flashing NOR is only supported on iPhone 3GS.')
-                sys.exit(1)
             device.nor_dump(saveBackup=True)
             device.flash_nor(new_nor)
 
         if opt == '--remove-24kpwn':
             device = PwnedDFUDevice()
-            if device.config.cpid != '8920':
-                print('This is not a compatible device. 24Kpwn exploit is only supported on iPhone 3GS.')
-                sys.exit(1)
 
             print('WARNING: This feature is for researchers only. Device will probably not boot into iOS until it is restored in iTunes.')
             input("Press ENTER to continue.")
@@ -164,9 +97,6 @@ if __name__ == '__main__':
 
         if opt == '--remove-alloc8':
             device = PwnedDFUDevice()
-            if device.config.cpid != '8920':
-                print('This is not a compatible device. alloc8 exploit is for iPhone 3GS only.')
-                sys.exit(1)
 
             print('WARNING: This feature is for researchers only. Device will probably not boot into iOS until it is restored in iTunes.')
             input("Press ENTER to continue.")
@@ -181,23 +111,3 @@ if __name__ == '__main__':
             print('Preparing modified NOR without alloc8 exploit.')
             new_nor = alloc8.remove_exploit(nor_data)
             device.flash_nor(new_nor.dump())
-
-        if opt == '--decrypt-gid':
-            device = PwnedDFUDevice()
-            print('Decrypting with S5L%s GID key.' % device.config.cpid)
-            print(device.aes_hex(arg, AES_DECRYPT, AES_GID_KEY))
-
-        if opt == '--encrypt-gid':
-            device = PwnedDFUDevice()
-            print('Encrypting with S5L%s GID key.' % device.config.cpid)
-            print(device.aes_hex(arg, AES_ENCRYPT, AES_GID_KEY))
-
-        if opt == '--decrypt-uid':
-            device = PwnedDFUDevice()
-            print('Decrypting with device-specific UID key.')
-            print(device.aes_hex(arg, AES_DECRYPT, AES_UID_KEY))
-
-        if opt == '--encrypt-uid':
-            device = PwnedDFUDevice()
-            print('Encrypting with device-specific UID key.')
-            print(device.aes_hex(arg, AES_ENCRYPT, AES_UID_KEY))

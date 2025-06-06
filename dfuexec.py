@@ -5,8 +5,6 @@ import dfu, recovery, image3, image3_24Kpwn, utilities
 EXEC_MAGIC = 'exec'[::-1].encode()
 AES_BLOCK_SIZE = 16
 AES_GID_KEY = 0x20000200
-AES_UID_KEY = 0x20000201
-AES_ENCRYPT = 16
 AES_DECRYPT = 17
 
 class PwnedDeviceConfig:
@@ -42,28 +40,7 @@ configs = [
         load_address=0x84000000,
         rom_address=0xbf000000,
         rom_size=0x10000,
-        rom_sha256='0e6feb1144c95b1ee088ecd6c45bfdc2ed17191167555b6ca513d6572e463c86'),
-    PwnedDeviceConfig(
-       version='359.5',
-       cpid='8922',
-       aes_crypto_cmd=0x919,
-       memmove=0x8564,
-       get_block_device=0x1851,
-       load_address=0x84000000,
-       rom_address=0xbf000000,
-       rom_size=0x10000,
-       rom_sha256='07b8a615f00961c5802451b5717c344db287b68c5f6d2331ac6ba7a6acdbac9d'
-    ),
-    PwnedDeviceConfig(
-       version='574.4',
-       cpid='8930',
-       aes_crypto_cmd=0x686d,
-       memmove=0x84dc,
-       get_block_device=0x81d5,
-       load_address=0x84000000,
-       rom_address=0xbf000000,
-       rom_size=0x10000,
-       rom_sha256='4f34652a238a57ae0018b6e66c20a240cdbee8b4cca59a99407d09f83ea8082d'
+        rom_sha256='0e6feb1144c95b1ee088ecd6c45bfdc2ed17191167555b6ca513d6572e463c86'
     ),
 ]
 
@@ -77,8 +54,8 @@ class PwnedDFUDevice():
             print('ERROR: Device is not in pwned DFU Mode. Use -p flag to exploit device and then try again.')
             sys.exit(1)
 
-        if 'CPID:8720' in self.identifier:
-            print('ERROR: This feature is not supported on iPod Touch (2nd generation).')
+        if 'CPID:8920' not in self.identifier:
+            print('ERROR: This is not a compatible device. iPhone 3GS only.')
             sys.exit(1)
 
         self.config = None
@@ -132,19 +109,8 @@ class PwnedDFUDevice():
         (retval, received) = self.execute(cmd + data, len(data))
         return received[:len(data)]
 
-    def aes_hex(self, hexdata, action, key):
-        if len(hexdata) % 32 != 0:
-            print(f'ERROR: Length of hex data for AES encryption/decryption must be a multiple of {2 * AES_BLOCK_SIZE}.')
-            sys.exit(1)
-
-        return binascii.hexlify(self.aes(binascii.unhexlify(hexdata), action, key)).decode()
-
     def read_memory(self, address, length):
         (retval, data) = self.execute(struct.pack('<4I', self.config.memmove, self.config.load_address + 8, address, length), length)
-        return data
-
-    def write_memory(self, address, data):
-        (retval, data) = self.execute(struct.pack(f'<4I{len(data)}s', self.config.memmove, address, self.config.load_address + 20, len(data), data), 0)
         return data
 
     def nor_dump(self, saveBackup):

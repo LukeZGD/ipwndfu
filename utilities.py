@@ -29,18 +29,3 @@ def aes_decrypt(data, iv, key):
         sys.exit(1)
 
     return stdout
-
-def hex_dump(data, address):
-    p = subprocess.Popen(
-        ['xxd', '-o', str(address)],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
-    stdout, stderr = p.communicate(input=data)
-
-    if p.returncode != 0 or len(stderr) > 0:
-        print(f'ERROR: xxd failed: {stderr.decode()}')
-        sys.exit(1)
-
-    return stdout

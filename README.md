@@ -9,13 +9,9 @@
 
 * Jailbreak and downgrade iPhone 3GS (new bootrom) with alloc8 untethered bootrom exploit. :-)
 
-* Pwned DFU Mode with limera1n exploit for S5L8920/S5L8922 devices.
-
 * Dump NOR on S5L8920 devices.
 
 * Flash NOR on S5L8920 devices.
-
-* Encrypt or decrypt hex data on a connected device in pwned DFU Mode using its GID or UID key.
 
 
 ## Dependencies
@@ -24,11 +20,6 @@ This tool should be compatible with Mac and Linux. It won't work in a virtual ma
 
 * libusb, `If you are using Linux: install libusb using your package manager.`
 * [iPhone 3GS iOS 4.3.5 iBSS](#ibss)
-
-
-## Tutorial
-
-This tool can be used to downgrade or jailbreak iPhone 3GS (new bootrom) without SHSH blobs, as documented in [JAILBREAK-GUIDE](https://github.com/axi0mX/ipwndfu/blob/master/JAILBREAK-GUIDE.md).
 
 
 ## Exploit write-up
@@ -50,18 +41,6 @@ In Terminal, extract iBSS using the following command, then move the file to ipw
 unzip -p iPhone2,1_4.3.5_8L1_Restore.ipsw Firmware/dfu/iBSS.n88ap.RELEASE.dfu > n88ap-iBSS-4.3.5.img3
 ```
 
-
-## Coming soon!
-
-* Reorganize and refactor code.
-
-* Easier setup: download iBSS automatically using partial zip.
-
-* Dump SecureROM on S5L8720 devices.
-
-* Install custom boot logos on devices jailbroken with 24Kpwn and alloc8.
-
-* Enable verbose boot on devices jailbroken with 24Kpwn and alloc8.
 
 ## Disclaimer
 
@@ -86,8 +65,6 @@ brew cask install gcc-arm-embedded
 ```
 
 ## Credit
-
-geohot for limera1n exploit
 
 chronic, CPICH, ius, MuscleNerd, Planetbeing, pod2g, posixninja, et al. for 24Kpwn exploit
 
