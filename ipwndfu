@@ -74,7 +74,7 @@ if __name__ == '__main__':
             nor_data = nor.NorData(dump)
 
             for byte in nor_data.parts[1]:
-                if byte != b'\x00':
+                if byte != 0:
                     print('ERROR: Bytes following IMG2 header in NOR are not zero. alloc8 exploit was likely previously installed. Exiting.')
                     sys.exit(1)
 
@@ -85,6 +85,7 @@ if __name__ == '__main__':
             print('Preparing modified NOR with alloc8 exploit.')
             nor_data.images[0] = image3_24Kpwn.remove_exploit(nor_data.images[0])
             new_nor = alloc8.exploit(nor_data, device.config.version)
+
             device.flash_nor(new_nor.dump())
 
         if opt == '-f':

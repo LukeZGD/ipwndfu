@@ -1,9 +1,8 @@
-import binascii
-import struct
+import binascii, struct
 
 NOR_SIZE = 0x100000
 
-class NorData:
+class NorData():
     def __init__(self, dump):
         assert len(dump) == NOR_SIZE
 
@@ -24,10 +23,7 @@ class NorData:
         self.images = []
         offset = 0
         while True:
-            header = self.parts[3][offset:offset + 8]
-            if len(header) < 8:
-                break
-            (magic, size) = struct.unpack('<4sI', header)
+            magic, size = struct.unpack('<4sI', self.parts[3][offset:offset+8])
             if magic != b'3gmI' or size == 0:
                 break
             self.images.append(self.parts[3][offset:offset + size])

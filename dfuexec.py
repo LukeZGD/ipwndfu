@@ -103,6 +103,7 @@ class PwnedDFUDevice():
         assert self.identifier == device.serial_number
 
         dfu.reset_counters(device)
+        dfu.usb_reset(device)
         dfu.send_data(device, EXEC_MAGIC + cmd)
         dfu.request_image_validation(device)
         dfu.release_device(device)
