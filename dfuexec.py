@@ -8,16 +8,13 @@ AES_GID_KEY = 0x20000200
 AES_DECRYPT = 17
 
 class PwnedDeviceConfig:
-    def __init__(self, version, cpid, aes_crypto_cmd, memmove, get_block_device, load_address, rom_address, rom_size, rom_sha256):
+    def __init__(self, version, cpid, aes_crypto_cmd, memmove, get_block_device, load_address):
         self.version = version
         self.cpid = cpid
         self.aes_crypto_cmd = aes_crypto_cmd
         self.memmove = memmove
         self.get_block_device = get_block_device
         self.load_address = load_address
-        self.rom_address = rom_address
-        self.rom_size = rom_size
-        self.rom_sha256 = rom_sha256
 
 configs = [
     PwnedDeviceConfig(
@@ -26,10 +23,7 @@ configs = [
         aes_crypto_cmd=0x925,
         memmove=0x83d4,
         get_block_device=0x1351,
-        load_address=0x84000000,
-        rom_address=0xbf000000,
-        rom_size=0x10000,
-        rom_sha256='99fd16f919a506c7f0701620e132e18c0e6f4025a57a85807960ca092e5e3587'
+        load_address=0x84000000
     ),
     PwnedDeviceConfig(
         version='359.3.2',
@@ -37,10 +31,7 @@ configs = [
         aes_crypto_cmd=0x925,
         memmove=0x83dc,
         get_block_device=0x1351,
-        load_address=0x84000000,
-        rom_address=0xbf000000,
-        rom_size=0x10000,
-        rom_sha256='0e6feb1144c95b1ee088ecd6c45bfdc2ed17191167555b6ca513d6572e463c86'
+        load_address=0x84000000
     ),
 ]
 
