@@ -1,105 +1,116 @@
-=======================================
-PyUSB 1.0 - Easy USB access from Python
-=======================================
+==================================
+PyUSB – Easy USB access for Python
+==================================
 
 Introduction
-============
+------------
 
-The PyUSB module provides for Python easy access to the host
-machine's Universal Serial Bus (USB) system.
+PyUSB provides for easy access to the host machine's Universal Serial Bus (USB)
+system for Python 3.
 
-Until 0.4 version, PyUSB used to be a thin wrapper over libusb.
-With 1.0 version, things changed considerably. Now PyUSB is an
-API rich, backend neutral Python USB module easy to use.
+Until 0.4 version, PyUSB used to be a thin wrapper over libusb. Starting with
+the 1.0 version, things changed considerably: now PyUSB is an API rich, backend
+neutral Python USB module easy to use.
 
-As with most Python modules, PyUSB's documentation is based on Python
-doc strings and can therefore be manipulated by tools such as pydoc.
+Documentation
+-------------
 
-You can also find a tutorial at:
-https://github.com/walac/pyusb/blob/master/docs/tutorial.rst.
+The best way to get started with PyUSB is to read the following documents:
 
-PyUSB is being developed and tested on Linux and Windows, but it should work
-fine on any platform running Python >= 2.4, ctypes and at least one of the
-builtin backends.
+* `Tutorial`_
+* `FAQ`_
 
-PyUSB supports libusb 0.1, libusb 1.0 and OpenUSB, but the user does not need
-to worry about that, unless in some corner cases.
 
-If you have any question about PyUSB, you can use the PyUSB mailing list
-hosted in the SourceForge. In the PyUSB website (http://walac.github.io/pyusb)
-you can find instructions on how to subscribe to the mailing list.
+For more detailed information, PyUSB's API documentation, as with most Python
+modules, is based on Python doc strings and can be manipulated by tools such as
+pydoc [1]_::
 
-Installing PyUSB on GNU/Linux Systems
-=====================================
+    $ python -m pydoc usb
 
-These instructions are for Debian-based systems.  Instructions for
-other flavors of GNU/Linux should be similar.
+The `libusb 1.0 documentation`_ is also a recommended read, especially when
+using that backend (more on this below).
 
-You will first need to install the following packages:
+Requirements and platform support
+---------------------------------
 
-1) python (PyUSB is useless without it), version >= 2.4
-2) At least one of the supported libraries (libusb 1.0, libusb 0.1 or OpenUSB)
-3) If your Python version is < 2.5, you have to install ctypes as a separate
-   package, because these versions of Python does not ship it.
+PyUSB is primarily developed and tested on Linux and Windows, but it should
+also work fine on any platform running Python >= 3.9, ctypes and at least one
+of the built-in backends.
 
-For example, the command::
+PyUSB supports `libusb 1.0`_, libusb 0.1 and OpenUSB. Of those, libusb 1.0 is
+currently recommended for most use cases.
 
-    $ sudo apt-get install python libusb-1.0-0
+*On Linux and BSD,* these will generally be available on the distribution's
+official repositories.
 
-should install all these packages on most Debian-based systems with
-access to the proper package repositories.
+*On macOS,* libusb 1.0 can easily be installed through Homebrew::
 
-Once the above packages are installed, you can install PyUSB
-with the command::
+    $ brew install libusb
 
-    $ sudo python setup.py install
+*On Windows,* `pyocd/libusb-package`_ is a convenient [2]_ [3]_ way to
+provide the necessary libusb 1.0 DLL, as well as a suitable PyUSB backend and
+a easy to use wrapper over PyUSB's ``find()`` API::
 
-Run it as root from within the same directory as this README file.
+    # with pure PyUSB
+    for dev in usb.core.find(find_all=True):
+        print(dev)
 
-You can also use `pip <https://docs.python.org/3/installing/>`_ to
-install PyUSB::
+    # with pyocd/libusb-package
+    for dev in libusb_package.find(find_all=True):
+        print(dev)
 
-    $ sudo pip install pyusb --pre
 
-Just bear in mind that you still follow to procedure to install the
-libusb library.
+Alternatively, the libusb 1.0 DLL can be manually copied from an official
+release archive into the ``C:\Windows\System32`` system folder, or packaged
+together with the complete application.
 
-For pure Debian variants
-------------------------
+Installing
+----------
 
-For pure Debian systems you are advised to install either the
-python-usb or python3-usb packages.  These are prebuilt based on
-PyUSB and libusb-1.0::
+PyUSB is generally installed through pip [1]_::
 
-    $ sudo apt-get install python-usb python3-usb
+    # the latest official release
+    python -m pip install pyusb
 
-You may wish to get the backported version 1.0, since PyUSB
-doesn't depend upon any truly unstable packages.
+    # a specific version (replace <version> with the desired version)
+    python -m pip install pyusb==<version>
 
-Installing PyUSB on Windows
-===========================
+    # or the latest snapshop from the official git repository
+    python -m pip install pyusb git+https://github.com/pyusb/pyusb#egg=pyusb
 
-Now that PyUSB is 100% written in Python, you install it on Windows
-in the same way you do on Linux::
+Most Linux distributions also package PyUSB in their official repositories.
 
-    python setup.py install
+Getting help
+------------
 
-If you get some kind of "command not found" error, make sure to add
-the Python install directory to your PATH environment variable or
-give the complete path to the Python interpreter.
+If you have a question about PyUSB:
 
-Remember that you need libusb (1.0 or 0.1) or OpenUSB running on your
-system. For Windows users, libusb 0.1 is provided through
-`libusb-win32 <http://libusb-win32.sourceforge.net>`_
-package. Check the libusb website for updates
-(http://www.libusb.info).
+* consult the `FAQ`_;
+* post a question in the `Q&A section`_;
+* write to the `PyUSB mailing list`_.
 
-Reporting bugs/Submitting patches
-=================================
+To report a bug or propose a new feature, use our `issue tracker`_.  But please
+search the database before opening a new issue.
 
-Some people have been sending patches and reporting bugs directly
-at my email. Please, do it through
-`github <https://github.com/walac/pyusb>`_, I had a hardtime tracking
-their names to put them in the acknowledgments file. ;-)
+Footnotes
+---------
 
-PS: this README file was based on the great Josh Lifton's one... ^_^
+.. [1] On systems that still default to Python 2, replace ``python`` with
+   ``python3``.
+
+.. [2] Unlike PyUSB, pyocd/libusb-package uses the more restrictive Apache 2.0
+   license.
+
+.. [3] While pyocd/libusb-package supports platforms other than Windows,
+   there are advantages to sticking to a system-provided libusb, if it is
+   available and the platform has a robust package manager (e.g. Linux, BSD,
+   macOS with Homebrew).
+
+.. _FAQ: https://github.com/pyusb/pyusb/blob/master/docs/faq.rst
+.. _PyUSB mailing list: https://sourceforge.net/projects/pyusb/lists/pyusb-users
+.. _Q&A section: https://github.com/pyusb/pyusb/discussions/categories/q-a
+.. _Tutorial: https://github.com/pyusb/pyusb/blob/master/docs/tutorial.rst
+.. _issue tracker: https://github.com/pyusb/pyusb/issues
+.. _libusb 1.0 documentation: https://libusb.info/
+.. _libusb 1.0: https://github.com/libusb/libusb
+.. _pyocd/libusb-package: https://github.com/pyocd/libusb-package/

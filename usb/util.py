@@ -1,30 +1,32 @@
-# Copyright (C) 2009-2014 Wander Lairson Costa
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 r"""usb.util - Utility functions.
 
@@ -47,8 +49,6 @@ __author__ = 'Wander Lairson Costa'
 
 import operator
 import array
-from sys import hexversion
-import usb._interop as _interop
 
 # descriptor type
 DESC_TYPE_DEVICE = 0x01
@@ -87,9 +87,6 @@ _ENDPOINT_ADDR_MASK = 0x0f
 _ENDPOINT_DIR_MASK = 0x80
 _ENDPOINT_TRANSFER_TYPE_MASK = 0x03
 _CTRL_DIR_MASK = 0x80
-
-# For compatibility between Python 2 and 3
-_dummy_s = '\x00'.encode('utf-8')
 
 # speed type
 SPEED_LOW = 1
@@ -159,7 +156,8 @@ def create_buffer(length):
     call. This function creates a compatible sequence buffer
     of the given length.
     """
-    return array.array('B', _dummy_s * length)
+    # Return an array with `length` zeros or raise a `TypeError`.
+    return array.array('B', length * b"\x00")
 
 def find_descriptor(desc, find_all=False, custom_match=None, **args):
     r"""Find an inner descriptor.
@@ -180,14 +178,14 @@ def find_descriptor(desc, find_all=False, custom_match=None, **args):
     def desc_iter(**kwargs):
         for d in desc:
             tests = (val == getattr(d, key) for key, val in kwargs.items())
-            if _interop._all(tests) and (custom_match is None or custom_match(d)):
+            if all(tests) and (custom_match is None or custom_match(d)):
                 yield d
 
     if find_all:
         return desc_iter(**args)
     else:
         try:
-            return _interop._next(desc_iter(**args))
+            return next(desc_iter(**args))
         except StopIteration:
             return None
 
@@ -299,32 +297,25 @@ def get_string(dev, index, langid = None):
 
     The return value is the unicode string present in the descriptor, or None
     if the requested index was zero.
-
-    It is a ValueError to request a real string (index not zero), if: the
-    device's langid tuple is empty, or with an explicit langid the device does
-    not support.
     """
     if 0 == index:
         return None
 
     from usb.control import get_descriptor
-    langids = dev.langids
 
-    if 0 == len(langids):
-        raise ValueError("The device has no langid")
     if langid is None:
+        langids = dev.langids
+        if 0 == len(langids):
+            raise ValueError("The device has no langid"
+                             " (permission issue, no string descriptors supported or device error)")
         langid = langids[0]
-    elif langid not in langids:
-        raise ValueError("The device does not support the specified langid")
 
     buf = get_descriptor(
                 dev,
-                255, # Maximum descriptor size
+                254, # maximum even length
                 DESC_TYPE_STRING,
                 index,
                 langid
             )
-    if hexversion >= 0x03020000:
-        return buf[2:buf[0]].tobytes().decode('utf-16-le')
-    else:
-        return buf[2:buf[0]].tostring().decode('utf-16-le')
+    blen = buf[0] & 0xfe # should be even, ignore any trailing byte (see #154)
+    return buf[2:blen].tobytes().decode('utf-16-le')

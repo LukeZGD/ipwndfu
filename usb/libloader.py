@@ -1,36 +1,40 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2013-2014 André Erdmann
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import ctypes
 import ctypes.util
 import logging
+import os.path
+import platform
 import sys
 
 __all__ = [
@@ -64,7 +68,7 @@ class LibraryMissingSymbolsException(LibraryException):
     pass
 
 
-def locate_library (candidates, find_library=ctypes.util.find_library):
+def locate_library(candidates, find_library=ctypes.util.find_library):
     """Tries to locate a library listed in candidates using the given
     find_library() function (or ctypes.util.find_library).
     Returns the first library found, which can be the library's name
@@ -87,6 +91,11 @@ def locate_library (candidates, find_library=ctypes.util.find_library):
         sys.platform == 'win32' and find_library is ctypes.util.find_library
     )
 
+    use_apple_silicon_workaround = (
+        sys.platform == 'darwin' and platform.machine() == 'arm64'
+            and find_library is ctypes.util.find_library
+    )
+
     for candidate in candidates:
         # Workaround for CPython 3.3 issue#16283 / pyusb #14
         if use_dll_workaround:
@@ -95,7 +104,15 @@ def locate_library (candidates, find_library=ctypes.util.find_library):
         libname = find_library(candidate)
         if libname:
             return libname
-    # -- end for
+
+        # On Apple Silicon, also check in `/opt/homebrew/lib`: homebrew patches
+        # the Python interpreters it distributes to check that directory, but
+        # other/stock interpreters don't know about it
+        if use_apple_silicon_workaround:
+            libname = "/opt/homebrew/lib/" + candidate + ".dylib"
+            if os.path.isfile(libname):
+                return libname
+
     return None
 
 def load_library(lib, name=None, lib_cls=None):
@@ -164,6 +181,7 @@ def load_locate_library(candidates, cygwin_lib, name,
     elif candidates:
         lib = locate_library(candidates, find_library)
         if lib:
+            _LOGGER.debug("%r found as %s", (name or candidates), lib)
             if sys.platform == 'win32':
                 loaded_lib = load_library(lib, name, win_cls)
             else:

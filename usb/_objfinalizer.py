@@ -1,34 +1,34 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2014 André Erdmann
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
-
-import sys
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 __all__ = ['AutoFinalizedObject']
 
@@ -84,72 +84,59 @@ class _AutoFinalizedObjectBase(object):
         self.finalize()
 
 
-if sys.hexversion >= 0x3040000:
-    # python >= 3.4: use weakref.finalize
-    import weakref
+import weakref
 
-    def _do_finalize_object_ref(obj_ref):
-        """Helper function for weakref.finalize() that dereferences a weakref
-        to an object and calls its _do_finalize_object() method if the object
-        is still alive. Does nothing otherwise.
+def _do_finalize_object_ref(obj_ref):
+    """Helper function for weakref.finalize() that dereferences a weakref
+    to an object and calls its _do_finalize_object() method if the object
+    is still alive. Does nothing otherwise.
 
-        Returns: None (implicit)
+    Returns: None (implicit)
+
+    Arguments:
+    * obj_ref -- weakref to an object
+    """
+    obj = obj_ref()
+    if obj is not None:
+        # else object disappeared
+        obj._do_finalize_object()
+
+
+class AutoFinalizedObject(_AutoFinalizedObjectBase):
+
+    def __new__(cls, *args, **kwargs):
+        """Creates a new object instance and adds the private finalizer
+        attributes to it.
+
+        Returns: new object instance
 
         Arguments:
-        * obj_ref -- weakref to an object
+        * *args, **kwargs -- passed to the parent instance creator
+                             (which ignores them)
         """
-        obj = obj_ref()
-        if obj is not None:
-            # else object disappeared
-            obj._do_finalize_object()
+        # Note:   Do not pass a (hard) reference to instance to the
+        #         finalizer as func/args/kwargs, it'd keep the object
+        #         alive until the program terminates.
+        #         A weak reference is fine.
+        #
+        # Note 2: When using weakrefs and not calling finalize() in
+        #         __del__, the object may already have disappeared
+        #         when weakref.finalize() kicks in.
+        #         Make sure that _finalizer() gets called,
+        #         i.e. keep __del__() from the base class.
+        #
+        # Note 3: the _finalize_called attribute is (probably) useless
+        #         for this class
+        instance = super(AutoFinalizedObject, cls).__new__(
+            cls, *args, **kwargs
+        )
 
+        instance._finalizer = weakref.finalize(
+            instance, _do_finalize_object_ref, weakref.ref(instance)
+        )
 
-    class AutoFinalizedObject(_AutoFinalizedObjectBase):
+        return instance
 
-        def __new__(cls, *args, **kwargs):
-            """Creates a new object instance and adds the private finalizer
-            attributes to it.
-
-            Returns: new object instance
-
-            Arguments:
-            * *args, **kwargs -- passed to the parent instance creator
-                                 (which ignores them)
-            """
-            # Note:   Do not pass a (hard) reference to instance to the
-            #         finalizer as func/args/kwargs, it'd keep the object
-            #         alive until the program terminates.
-            #         A weak reference is fine.
-            #
-            # Note 2: When using weakrefs and not calling finalize() in
-            #         __del__, the object may already have disappeared
-            #         when weakref.finalize() kicks in.
-            #         Make sure that _finalizer() gets called,
-            #         i.e. keep __del__() from the base class.
-            #
-            # Note 3: the _finalize_called attribute is (probably) useless
-            #         for this class
-            instance = super(AutoFinalizedObject, cls).__new__(
-                cls, *args, **kwargs
-            )
-
-            instance._finalizer = weakref.finalize(
-                instance, _do_finalize_object_ref, weakref.ref(instance)
-            )
-
-            return instance
-
-        def finalize(self):
-            """Finalizes the object if not already done."""
-            self._finalizer()
-
-
-else:
-    # python < 3.4: keep the old behavior (rely on __del__),
-    #                but don't call _finalize_object() more than once
-
-    class AutoFinalizedObject(_AutoFinalizedObjectBase):
-
-        def finalize(self):
-            """Finalizes the object if not already done."""
-            self._do_finalize_object()
+    def finalize(self):
+        """Finalizes the object if not already done."""
+        self._finalizer()

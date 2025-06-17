@@ -1,30 +1,32 @@
-# Copyright (C) 2009-2014 Wander Lairson Costa
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 r"""usb.backend - Backend interface.
 
@@ -75,7 +77,7 @@ import usb._objfinalizer as _objfinalizer
 
 __author__ = 'Wander Lairson Costa'
 
-__all__ = ['IBackend', 'libusb01', 'libusb10', 'openusb']
+__all__ = ['IBackend', 'libusb0', 'libusb1', 'openusb']
 
 def _not_implemented(func):
     raise NotImplementedError(func.__name__)
@@ -103,6 +105,10 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface.
         """
         _not_implemented(self.enumerate_devices)
+
+    def get_parent(self, dev):
+        """Return the parent device of the given device."""
+        _not_implemented(self.get_parent)
 
     def get_device_descriptor(self, dev):
         r"""Return the device descriptor of the given device.
@@ -205,7 +211,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
 
         This method should only be called when the interface has more than
         one alternate setting. The dev_handle is the value returned by the
-        open_device() method. intf and altsetting are respectivelly the
+        open_device() method. intf and altsetting are respectively the
         bInterfaceNumber and bAlternateSetting fields of the related interface.
         """
         _not_implemented(self.set_interface_altsetting)
@@ -240,7 +246,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface containing the endpoint. The data parameter
         is the data to be sent. It must be an instance of the array.array
         class. The timeout parameter specifies a time limit to the operation
-        in miliseconds.
+        in milliseconds.
 
         The method returns the number of bytes written.
         """
@@ -255,7 +261,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface containing the endpoint. The buff parameter
         is the buffer to receive the data read, the length of the buffer
         tells how many bytes should be read. The timeout parameter
-        specifies a time limit to the operation in miliseconds.
+        specifies a time limit to the operation in milliseconds.
 
         The method returns the number of bytes actually read.
         """
@@ -270,14 +276,14 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface containing the endpoint. The data parameter
         is the data to be sent. It must be an instance of the array.array
         class. The timeout parameter specifies a time limit to the operation
-        in miliseconds.
+        in milliseconds.
 
         The method returns the number of bytes written.
         """
         _not_implemented(self.intr_write)
 
     def intr_read(self, dev_handle, ep, intf, size, timeout):
-        r"""Perform an interrut read.
+        r"""Perform an interrupt read.
 
         dev_handle is the value returned by the open_device() method.
         The ep parameter is the bEndpointAddress field whose endpoint
@@ -285,7 +291,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface containing the endpoint. The buff parameter
         is the buffer to receive the data read, the length of the buffer
         tells how many bytes should be read.  The timeout parameter
-        specifies a time limit to the operation in miliseconds.
+        specifies a time limit to the operation in milliseconds.
 
         The method returns the number of bytes actually read.
         """
@@ -300,7 +306,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface containing the endpoint. The data parameter
         is the data to be sent. It must be an instance of the array.array
         class. The timeout parameter specifies a time limit to the operation
-        in miliseconds.
+        in milliseconds.
 
         The method returns the number of bytes written.
         """
@@ -315,7 +321,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         of the interface containing the endpoint. The buff parameter
         is buffer to receive the data read, the length of the buffer tells
         how many bytes should be read. The timeout parameter specifies
-        a time limit to the operation in miliseconds.
+        a time limit to the operation in milliseconds.
 
         The method returns the number of bytes actually read.
         """
@@ -341,7 +347,7 @@ class IBackend(_objfinalizer.AutoFinalizedObject):
         IN requests it is the buffer to hold the data read. The number
         of bytes requested to transmit or receive is equal to the length
         of the array times the data.itemsize field. The timeout parameter
-        specifies a time limit to the operation in miliseconds.
+        specifies a time limit to the operation in milliseconds.
 
         Return the number of bytes written (for OUT transfers) or the data
         read (for IN transfers), as an array.array object.

@@ -1,37 +1,40 @@
-# Copyright (C) 2009-2014 Wander Lairson Costa
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from ctypes import *
+import errno
 import os
 import usb.backend
 import usb.util
 import sys
-from usb.core import USBError
+from usb.core import USBError, USBTimeoutError
 from usb._debug import methodtrace
 import usb._interop as _interop
 import logging
@@ -42,6 +45,8 @@ __author__ = 'Wander Lairson Costa'
 __all__ = ['get_backend']
 
 _logger = logging.getLogger('usb.backend.libusb0')
+
+_USBFS_MAXDRIVERNAME = 255
 
 # usb.h
 
@@ -363,6 +368,14 @@ def _setup_prototypes(lib):
 
     # linux only
 
+    # int usb_get_driver_np(usb_dev_handle *dev,
+    #                       int interface,
+    #                       char *name,
+    #                       unsigned int namelen);
+    if hasattr(lib, 'usb_get_driver_np'):
+        lib.usb_get_driver_np.argtypes = \
+            [_usb_dev_handle, c_int, c_char_p, c_uint]
+
     # int usb_detach_kernel_driver_np(usb_dev_handle *dev, int interface);
     if hasattr(lib, 'usb_detach_kernel_driver_np'):
         lib.usb_detach_kernel_driver_np.argtypes = [_usb_dev_handle, c_int]
@@ -428,6 +441,9 @@ def _check(ret):
                 errmsg = os.strerror(-ret)
         else:
             return ret
+
+    if ret is not None and -ret == errno.ETIMEDOUT:
+        raise USBTimeoutError(errmsg, ret, -ret)
     raise USBError(errmsg, ret)
 
 def _has_iso_transfer():
@@ -602,8 +618,62 @@ class _LibUSB(usb.backend.IBackend):
         _check(_lib.usb_reset(dev_handle))
 
     @methodtrace(_logger)
+    def is_kernel_driver_active(self, dev_handle, intf):
+        if sys.platform == 'linux':
+            # based on the implementation of libusb_kernel_driver_active()
+            # (see op_kernel_driver_active() in libusb/os/linux_usbfs.c)
+            # and the fact that usb_get_driver_np() is a wrapper for
+            # IOCTL_USBFS_GETDRIVER
+            try:
+                driver_name = self.__get_driver_name(dev_handle, intf)
+                # 'usbfs' is not considered a [foreign] kernel driver because
+                # it is what we use to access the device from userspace
+                return driver_name != b'usbfs'
+            except USBError as err:
+                # ENODATA means that no kernel driver is attached
+                if err.backend_error_code == -errno.ENODATA:
+                    return False
+                raise
+        elif sys.platform == 'darwin':
+            # on mac os/darwin we assume all users are running libusb-compat,
+            # which, in turn, uses libusb_kernel_driver_active()
+            try:
+                driver_name = self.__get_driver_name(dev_handle, intf)
+                return True
+            except USBError as err:
+                # ENODATA means that no kernel driver is attached
+                if err.backend_error_code == -errno.ENODATA:
+                    return False
+                raise
+        elif sys.platform.startswith('freebsd') or sys.platform.startswith('dragonfly'):
+            # this is similar to the Linux implementation, but the generic
+            # driver is called 'ugen' and usb_get_driver_np() simply returns an
+            # empty string is no driver is attached (see comments on PR #366)
+            driver_name = self.__get_driver_name(dev_handle, intf)
+            # 'ugen' is not considered a [foreign] kernel driver because
+            # it is what we use to access the device from userspace
+            return driver_name != b'ugen'
+        else:
+            raise NotImplementedError(self.is_kernel_driver_active.__name__)
+
+    @methodtrace(_logger)
     def detach_kernel_driver(self, dev_handle, intf):
+        if not hasattr(_lib, 'usb_detach_kernel_driver_np'):
+            raise NotImplementedError(self.detach_kernel_driver.__name__)
         _check(_lib.usb_detach_kernel_driver_np(dev_handle, intf))
+
+    def __get_driver_name(self, dev_handle, intf):
+        if not hasattr(_lib, 'usb_get_driver_np'):
+            raise NotImplementedError('usb_get_driver_np')
+        buf = usb.util.create_buffer(_USBFS_MAXDRIVERNAME + 1)
+        name, length = buf.buffer_info()
+        length *= buf.itemsize
+        _check(_lib.usb_get_driver_np(
+                    dev_handle,
+                    intf,
+                    cast(name, c_char_p),
+                    length))
+        return cast(name, c_char_p).value
 
     def __write(self, fn, dev_handle, ep, intf, data, timeout):
         address, length = data.buffer_info()

@@ -1,30 +1,32 @@
-# Copyright (C) 2009-2014 Wander Lairson Costa
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 r"""usb.core - Core USB features.
 
@@ -40,8 +42,8 @@ show_devices() - a function to show the devices present.
 
 __author__ = 'Wander Lairson Costa'
 
-__all__ = [ 'Device', 'Configuration', 'Interface', 'Endpoint', 'find',
-            'show_devices' ]
+__all__ = [ 'Device', 'Configuration', 'Interface', 'Endpoint', 'USBError',
+            'USBTimeoutError', 'NoBackendError', 'find', 'show_devices' ]
 
 import usb.util as util
 import copy
@@ -58,9 +60,18 @@ _logger = logging.getLogger('usb.core')
 
 _DEFAULT_TIMEOUT = 1000
 
+_sentinel = object()
+
 def _set_attr(input, output, fields):
     for f in fields:
-       setattr(output, f, getattr(input, f))
+        setattr(output, f, getattr(input, f))
+
+def _try_getattr(object, name):
+    try:
+        attr = getattr(object, name)
+    except :
+        attr = _sentinel
+    return attr
 
 def _try_get_string(dev, index, langid = None, default_str_i0 = "",
         default_access_error = "Error Accessing String"):
@@ -104,13 +115,14 @@ def synchronized(f):
             self.lock.release()
     return wrapper
 
-class _ResourceManager(object):
+class _ResourceManager():
     def __init__(self, dev, backend):
         self.backend = backend
         self._active_cfg_index = None
         self.dev = dev
         self.handle = None
-        self._claimed_intf = _interop._set()
+        self._claimed_intf = set()
+        self._intf_setting = {}
         self._ep_info = {}
         self.lock = threading.RLock()
 
@@ -133,7 +145,7 @@ class _ResourceManager(object):
         elif isinstance(config, Configuration):
             cfg = config
         elif config == 0: # unconfigured state
-            class MockConfiguration(object):
+            class MockConfiguration():
                 def __init__(self):
                     self.index = None
                     self.bConfigurationValue = 0
@@ -152,6 +164,7 @@ class _ResourceManager(object):
         # which tracks the Configuration, which tracks the Device)
         self._active_cfg_index = cfg.index
 
+        self._intf_setting.clear()
         self._ep_info.clear()
 
     @synchronized
@@ -195,6 +208,8 @@ class _ResourceManager(object):
                 i = util.find_descriptor(cfg, bInterfaceNumber=intf, bAlternateSetting=alt)
             else:
                 i = util.find_descriptor(cfg, bInterfaceNumber=intf)
+            if i is None:
+                raise ValueError('No matching interface (' + str(intf) + ',' + str(alt) + ')')
 
         self.managed_claim_interface(device, i)
 
@@ -202,6 +217,9 @@ class _ResourceManager(object):
             alt = i.bAlternateSetting
 
         self.backend.set_interface_altsetting(self.handle, i.bInterfaceNumber, alt)
+
+        self._intf_setting[i.bInterfaceNumber] = alt
+        self._ep_info.clear()
 
     @synchronized
     def setup_request(self, device, endpoint):
@@ -223,6 +241,8 @@ class _ResourceManager(object):
             return self._ep_info[endpoint_address]
         except KeyError:
             for intf in self.get_active_configuration(device):
+                if intf.bAlternateSetting != self._intf_setting.get(intf.bInterfaceNumber, 0):
+                    continue
                 ep = util.find_descriptor(intf, bEndpointAddress=endpoint_address)
                 if ep is not None:
                     self._ep_info[endpoint_address] = (intf, ep)
@@ -260,6 +280,7 @@ class _ResourceManager(object):
         self.release_all_interfaces(device)
         if close_handle:
             self.managed_close()
+        self._intf_setting.clear()
         self._ep_info.clear()
         self._active_cfg_index = None
 
@@ -283,11 +304,19 @@ class USBError(IOError):
         IOError.__init__(self, errno, strerror)
         self.backend_error_code = error_code
 
+class USBTimeoutError(USBError):
+    r"""Exception class for connection timeout errors.
+
+    Backends must raise this exception when a call on a USB connection returns
+    a timeout error code.
+    """
+    pass
+
 class NoBackendError(ValueError):
     r"Exception class when a valid backend is not found."
     pass
 
-class Endpoint(object):
+class Endpoint():
     r"""Represent an endpoint object.
 
     This class contains all fields of the Endpoint Descriptor according to the
@@ -416,7 +445,7 @@ class Endpoint(object):
             _lu.ep_attributes[(self.bmAttributes & 0x3)],
             direction))
 
-class Interface(object):
+class Interface():
     r"""Represent an interface object.
 
     This class contains all fields of the Interface Descriptor
@@ -553,7 +582,7 @@ class Interface(object):
             _try_get_string(self.device, self.iInterface))
 
 
-class Configuration(object):
+class Configuration():
     r"""Represent a configuration object.
 
     This class contains all fields of the Configuration Descriptor according to
@@ -640,11 +669,18 @@ class Configuration(object):
         """
         return Interface(self.device, index[0], index[1], self.index)
 
+    def _get_power_multiplier(self):
+        if self.device.speed is not None:
+            power_multiplier = _lu.MAX_POWER_UNITS_USB_SUPERSPEED if self.device.speed >= 4 else _lu.MAX_POWER_UNITS_USB2p0
+        else:
+            power_multiplier = _lu.MAX_POWER_UNITS_USB_SUPERSPEED if self.device.bcdUSB >= 0x0300 else _lu.MAX_POWER_UNITS_USB2p0
+
+        return power_multiplier
 
     def _str(self):
         return "CONFIGURATION %d: %d mA" % (
             self.bConfigurationValue,
-            _lu.MAX_POWER_UNITS_USB2p0 * self.bMaxPower)
+            self._get_power_multiplier() * self.bMaxPower)
 
     def _get_full_descriptor_str(self):
         headstr = "  " + self._str() + " "
@@ -679,8 +715,7 @@ class Configuration(object):
             ) + \
         "   %-21s:%#7x (%d mA)" % (
             "bMaxPower", self.bMaxPower,
-            _lu.MAX_POWER_UNITS_USB2p0 * self.bMaxPower)
-            # FIXME : add a check for superspeed vs usb 2.0
+            self._get_power_multiplier() * self.bMaxPower)
 
 class Device(_objfinalizer.AutoFinalizedObject):
     r"""Device object.
@@ -714,9 +749,19 @@ class Device(_objfinalizer.AutoFinalizedObject):
     value for most devices) and then writes some data to the endpoint 0x01.
 
     Timeout values for the write, read and ctrl_transfer methods are specified
-    in miliseconds. If the parameter is omitted, Device.default_timeout value
+    in milliseconds. If the parameter is omitted, Device.default_timeout value
     will be used instead. This property can be set by the user at anytime.
     """
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return (self.backend, self.bus, self.address) == \
+                   (other.backend, other.bus, other.address)
+        else:
+            return NotImplemented
+
+    def __hash__(self):
+        return hash((self.backend, self.bus, self.address))
 
     def __repr__(self):
         return "<" + self._str() + ">"
@@ -800,6 +845,9 @@ class Device(_objfinalizer.AutoFinalizedObject):
         else:
             self.speed = None
 
+        self._has_parent = None
+        self._parent = None
+
     @property
     def langids(self):
         """ Return the USB device's supported language ID codes.
@@ -840,6 +888,18 @@ class Device(_objfinalizer.AutoFinalizedObject):
         if self._product is None:
             self._product = util.get_string(self, self.iProduct)
         return self._product
+
+    @property
+    def parent(self):
+        """ Return the parent device. """
+        if self._has_parent is None:
+            _parent = self._ctx.backend.get_parent(self._ctx.dev)
+            self._has_parent = _parent is not None
+            if self._has_parent:
+                self._parent = Device(_parent, self._ctx.backend)
+            else:
+                self._parent = None
+        return self._parent
 
     @property
     def manufacturer(self):
@@ -925,7 +985,7 @@ class Device(_objfinalizer.AutoFinalizedObject):
         The data parameter should be a sequence like type convertible to
         the array type (see array module).
 
-        The timeout is specified in miliseconds.
+        The timeout is specified in milliseconds.
 
         The method returns the number of bytes written.
         """
@@ -957,7 +1017,7 @@ class Device(_objfinalizer.AutoFinalizedObject):
         tells how many bytes you want to read or supplies the buffer to
         receive the data (it *must* be an object of the type array).
 
-        The timeout is specified in miliseconds.
+        The timeout is specified in milliseconds.
 
         If the size_or_buffer parameter is the number of bytes to read, the
         method returns an array object with the data read. If the
@@ -1017,10 +1077,7 @@ class Device(_objfinalizer.AutoFinalizedObject):
         object which the data will be read to, and the return value is the
         number of bytes read.
         """
-        try:
-            buff = util.create_buffer(data_or_wLength)
-        except TypeError:
-            buff = _interop.as_array(data_or_wLength)
+        buff = _interop.as_array(data_or_wLength)
 
         self._ctx.managed_open()
 
@@ -1098,7 +1155,8 @@ class Device(_objfinalizer.AutoFinalizedObject):
         return Configuration(self, index)
 
     def _finalize_object(self):
-        self._ctx.dispose(self)
+        if hasattr(self, '_ctx'):
+            self._ctx.dispose(self)
 
     def __get_timeout(self, timeout):
         if timeout is not None:
@@ -1201,7 +1259,7 @@ def find(find_all=False, backend = None, custom_match = None, **args):
 
     You can also use a customized match criteria:
 
-    dev = find(custom_match = lambda d: d.idProduct=0x3f4 and d.idvendor=0x2009)
+    dev = find(custom_match = lambda d: d.idProduct==0x3f4 and d.idVendor==0x2009)
 
     A more accurate printer finder using a customized match would be like
     so:
@@ -1245,8 +1303,8 @@ def find(find_all=False, backend = None, custom_match = None, **args):
     def device_iter(**kwargs):
         for dev in backend.enumerate_devices():
             d = Device(dev, backend)
-            tests = (val == getattr(d, key) for key, val in kwargs.items())
-            if _interop._all(tests) and (custom_match is None or custom_match(d)):
+            tests = (val == _try_getattr(d, key) for key, val in kwargs.items())
+            if all(tests) and (custom_match is None or custom_match(d)):
                 yield d
 
     if backend is None:
@@ -1266,7 +1324,7 @@ def find(find_all=False, backend = None, custom_match = None, **args):
         return device_iter(**args)
     else:
         try:
-            return _interop._next(device_iter(**args))
+            return next(device_iter(**args))
         except StopIteration:
             return None
 

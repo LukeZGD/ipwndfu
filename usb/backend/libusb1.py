@@ -1,30 +1,32 @@
-# Copyright (C) 2009-2014 Wander Lairson Costa
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from ctypes import *
 import usb.util
@@ -35,14 +37,14 @@ import usb._interop as _interop
 import usb._objfinalizer as _objfinalizer
 import errno
 import math
-from usb.core import USBError
+from usb.core import USBError, USBTimeoutError
 import usb.libloader
 
 __author__ = 'Wander Lairson Costa'
 
 __all__ = [
             'get_backend',
-            'LIBUSB_SUCESS',
+            'LIBUSB_SUCCESS',
             'LIBUSB_ERROR_IO',
             'LIBUSB_ERROR_INVALID_PARAM',
             'LIBUSB_ERROR_ACCESS',
@@ -55,14 +57,14 @@ __all__ = [
             'LIBUSB_ERROR_INTERRUPTED',
             'LIBUSB_ERROR_NO_MEM',
             'LIBUSB_ERROR_NOT_SUPPORTED',
-            'LIBUSB_ERROR_OTHER'
+            'LIBUSB_ERROR_OTHER',
             'LIBUSB_TRANSFER_COMPLETED',
             'LIBUSB_TRANSFER_ERROR',
             'LIBUSB_TRANSFER_TIMED_OUT',
             'LIBUSB_TRANSFER_CANCELLED',
             'LIBUSB_TRANSFER_STALL',
             'LIBUSB_TRANSFER_NO_DEVICE',
-            'LIBUSB_TRANSFER_OVERFLOW'
+            'LIBUSB_TRANSFER_OVERFLOW',
         ]
 
 _logger = logging.getLogger('usb.backend.libusb1')
@@ -71,7 +73,7 @@ _logger = logging.getLogger('usb.backend.libusb1')
 
 # transfer_type codes
 # Control endpoint
-_LIBUSB_TRANSFER_TYPE_CONTROL = 0,
+_LIBUSB_TRANSFER_TYPE_CONTROL = 0
 # Isochronous endpoint
 _LIBUSB_TRANSFER_TYPE_ISOCHRONOUS = 1
 # Bulk endpoint
@@ -304,6 +306,10 @@ def _setup_prototypes(lib):
             c_void_p,
             POINTER(POINTER(c_void_p))
         ]
+
+    # libusb_device *libusb_get_parent (libusb_device *dev)
+    lib.libusb_get_parent.argtypes = [c_void_p]
+    lib.libusb_get_parent.restype = c_void_p
 
     # void libusb_free_device_list (libusb_device **list,
     #                               int unref_devices)
@@ -592,6 +598,8 @@ def _check(ret):
     if ret < 0:
         if ret == LIBUSB_ERROR_NOT_SUPPORTED:
             raise NotImplementedError(_strerror(ret))
+        elif ret == LIBUSB_ERROR_TIMEOUT:
+            raise USBTimeoutError(_strerror(ret), ret, _libusb_errno[ret])
         else:
             raise USBError(_strerror(ret), ret, _libusb_errno[ret])
 
@@ -601,8 +609,11 @@ def _check(ret):
 class _Device(_objfinalizer.AutoFinalizedObject):
     def __init__(self, devid):
         self.devid = _lib.libusb_ref_device(devid)
+
+    @methodtrace(_logger)
     def _finalize_object(self):
-        _lib.libusb_unref_device(self.devid)
+        if hasattr(self, 'devid'):
+            _lib.libusb_unref_device(self.devid)
 
 # wrap a descriptor and keep a reference to another object
 # Thanks to Thomas Reitmayr.
@@ -618,10 +629,10 @@ class _ConfigDescriptor(_objfinalizer.AutoFinalizedObject):
     def __init__(self, desc):
         self.desc = desc
     def _finalize_object(self):
-        _lib.libusb_free_config_descriptor(self.desc)
+        if hasattr(self, 'desc'):
+            _lib.libusb_free_config_descriptor(self.desc)
     def __getattr__(self, name):
         return getattr(self.desc.contents, name)
-
 
 # iterator for libusb devices
 class _DevIterator(_objfinalizer.AutoFinalizedObject):
@@ -635,7 +646,8 @@ class _DevIterator(_objfinalizer.AutoFinalizedObject):
         for i in range(self.num_devs):
             yield _Device(self.dev_list[i])
     def _finalize_object(self):
-        _lib.libusb_free_device_list(self.dev_list, 1)
+        if hasattr(self, 'dev_list'):
+            _lib.libusb_free_device_list(self.dev_list, 1)
 
 class _DeviceHandle(object):
     def __init__(self, dev):
@@ -665,7 +677,8 @@ class _IsoTransferHandler(_objfinalizer.AutoFinalizedObject):
         self.__set_packets_length(length, packet_length)
 
     def _finalize_object(self):
-        _lib.libusb_free_transfer(self.transfer)
+        if hasattr(self, 'transfer'):
+            _lib.libusb_free_transfer(self.transfer)
 
     def submit(self, ctx = None):
         self.__callback_done = 0
@@ -710,12 +723,20 @@ class _LibUSB(usb.backend.IBackend):
 
     @methodtrace(_logger)
     def _finalize_object(self):
-        self.lib.libusb_exit(self.ctx)
-
+        if hasattr(self, 'ctx') and self.ctx:
+            self.lib.libusb_exit(self.ctx)
 
     @methodtrace(_logger)
     def enumerate_devices(self):
         return _DevIterator(self.ctx)
+
+    @methodtrace(_logger)
+    def get_parent(self, dev):
+        _parent = self.lib.libusb_get_parent(dev.devid)
+        if _parent is None:
+            return None
+        else:
+            return _Device(_parent)
 
     @methodtrace(_logger)
     def get_device_descriptor(self, dev):

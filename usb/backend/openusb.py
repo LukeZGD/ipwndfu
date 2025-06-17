@@ -1,30 +1,32 @@
-# Copyright (C) 2009-2014 Wander Lairson Costa
+# Copyright 2009-2017 Wander Lairson Costa
+# Copyright 2009-2021 PyUSB contributors
 #
-# The following terms apply to all files associated
-# with the software unless explicitly disclaimed in individual files.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
 #
-# The authors hereby grant permission to use, copy, modify, distribute,
-# and license this software and its documentation for any purpose, provided
-# that existing copyright notices are retained in all copies and that this
-# notice is included verbatim in any distributions. No written agreement,
-# license, or royalty fee is required for any of the authorized uses.
-# Modifications to this software may be copyrighted by their authors
-# and need not follow the licensing terms described here, provided that
-# the new terms are clearly indicated on the first page of each file where
-# they apply.
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 #
-# IN NO EVENT SHALL THE AUTHORS OR DISTRIBUTORS BE LIABLE TO ANY PARTY
-# FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
-# ARISING OUT OF THE USE OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY
-# DERIVATIVES THEREOF, EVEN IF THE AUTHORS HAVE BEEN ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
 #
-# THE AUTHORS AND DISTRIBUTORS SPECIFICALLY DISCLAIM ANY WARRANTIES,
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.  THIS SOFTWARE
-# IS PROVIDED ON AN "AS IS" BASIS, AND THE AUTHORS AND DISTRIBUTORS HAVE
-# NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-# MODIFICATIONS.
+# 3. Neither the name of the copyright holder nor the names of its
+# contributors may be used to endorse or promote products derived from
+# this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from ctypes import *
 import ctypes.util
@@ -37,42 +39,42 @@ import usb._interop as _interop
 import usb._objfinalizer as _objfinalizer
 import usb.util as util
 import usb.libloader
-from usb.core import USBError
+from usb.core import USBError, USBTimeoutError
 
 __author__ = 'Wander Lairson Costa'
 
 __all__ = [
-            'get_backend'
-            'OPENUSB_SUCCESS'
-            'OPENUSB_PLATFORM_FAILURE'
-            'OPENUSB_NO_RESOURCES'
-            'OPENUSB_NO_BANDWIDTH'
-            'OPENUSB_NOT_SUPPORTED'
-            'OPENUSB_HC_HARDWARE_ERROR'
-            'OPENUSB_INVALID_PERM'
-            'OPENUSB_BUSY'
-            'OPENUSB_BADARG'
-            'OPENUSB_NOACCESS'
-            'OPENUSB_PARSE_ERROR'
-            'OPENUSB_UNKNOWN_DEVICE'
-            'OPENUSB_INVALID_HANDLE'
-            'OPENUSB_SYS_FUNC_FAILURE'
-            'OPENUSB_NULL_LIST'
-            'OPENUSB_CB_CONTINUE'
-            'OPENUSB_CB_TERMINATE'
-            'OPENUSB_IO_STALL'
-            'OPENUSB_IO_CRC_ERROR'
-            'OPENUSB_IO_DEVICE_HUNG'
-            'OPENUSB_IO_REQ_TOO_BIG'
-            'OPENUSB_IO_BIT_STUFFING'
-            'OPENUSB_IO_UNEXPECTED_PID'
-            'OPENUSB_IO_DATA_OVERRUN'
-            'OPENUSB_IO_DATA_UNDERRUN'
-            'OPENUSB_IO_BUFFER_OVERRUN'
-            'OPENUSB_IO_BUFFER_UNDERRUN'
-            'OPENUSB_IO_PID_CHECK_FAILURE'
-            'OPENUSB_IO_DATA_TOGGLE_MISMATCH'
-            'OPENUSB_IO_TIMEOUT'
+            'get_backend',
+            'OPENUSB_SUCCESS',
+            'OPENUSB_PLATFORM_FAILURE',
+            'OPENUSB_NO_RESOURCES',
+            'OPENUSB_NO_BANDWIDTH',
+            'OPENUSB_NOT_SUPPORTED',
+            'OPENUSB_HC_HARDWARE_ERROR',
+            'OPENUSB_INVALID_PERM',
+            'OPENUSB_BUSY',
+            'OPENUSB_BADARG',
+            'OPENUSB_NOACCESS',
+            'OPENUSB_PARSE_ERROR',
+            'OPENUSB_UNKNOWN_DEVICE',
+            'OPENUSB_INVALID_HANDLE',
+            'OPENUSB_SYS_FUNC_FAILURE',
+            'OPENUSB_NULL_LIST',
+            'OPENUSB_CB_CONTINUE',
+            'OPENUSB_CB_TERMINATE',
+            'OPENUSB_IO_STALL',
+            'OPENUSB_IO_CRC_ERROR',
+            'OPENUSB_IO_DEVICE_HUNG',
+            'OPENUSB_IO_REQ_TOO_BIG',
+            'OPENUSB_IO_BIT_STUFFING',
+            'OPENUSB_IO_UNEXPECTED_PID',
+            'OPENUSB_IO_DATA_OVERRUN',
+            'OPENUSB_IO_DATA_UNDERRUN',
+            'OPENUSB_IO_BUFFER_OVERRUN',
+            'OPENUSB_IO_BUFFER_UNDERRUN',
+            'OPENUSB_IO_PID_CHECK_FAILURE',
+            'OPENUSB_IO_DATA_TOGGLE_MISMATCH',
+            'OPENUSB_IO_TIMEOUT',
             'OPENUSB_IO_CANCELED'
         ]
 
@@ -471,7 +473,7 @@ def _setup_prototypes(lib):
                 POINTER(_openusb_intr_request)
             ]
 
-    lib.openusb_bulk_xfer.restype = c_int32
+    lib.openusb_intr_xfer.restype = c_int32
 
     # int32_t openusb_bulk_xfer(openusb_dev_handle_t dev,
     #                           uint8_t ifc,
@@ -504,7 +506,11 @@ def _check(ret):
         ret = ret.value
 
     if ret != 0:
-        raise USBError(_lib.openusb_strerror(ret), ret, _openusb_errno[ret])
+        if ret == OPENUSB_IO_TIMEOUT:
+            raise USBTimeoutError(_lib.openusb_strerror(ret), ret, _openusb_errno[ret])
+        else:
+            raise USBError(_lib.openusb_strerror(ret), ret, _openusb_errno[ret])
+
     return ret
 
 class _Context(_objfinalizer.AutoFinalizedObject):
@@ -512,7 +518,8 @@ class _Context(_objfinalizer.AutoFinalizedObject):
         self.handle = _openusb_handle()
         _check(_lib.openusb_init(0, byref(self.handle)))
     def _finalize_object(self):
-        _lib.openusb_fini(self.handle)
+        if hasattr(self, 'handle'):
+            _lib.openusb_fini(self.handle)
 
 class _BusIterator(_objfinalizer.AutoFinalizedObject):
     def __init__(self):
@@ -526,7 +533,8 @@ class _BusIterator(_objfinalizer.AutoFinalizedObject):
         for i in range(self.num_busids):
             yield self.buslist[i]
     def _finalize_object(self):
-        _lib.openusb_free_busid_list(self.buslist)
+        if hasattr(self, 'buslist'):
+            _lib.openusb_free_busid_list(self.buslist)
 
 class _DevIterator(_objfinalizer.AutoFinalizedObject):
     def __init__(self, busid):
@@ -541,7 +549,8 @@ class _DevIterator(_objfinalizer.AutoFinalizedObject):
         for i in range(self.num_devids):
             yield self.devlist[i]
     def _finalize_object(self):
-        _lib.openusb_free_devid_list(self.devlist)
+        if hasattr(self, 'devlist'):
+            _lib.openusb_free_devid_list(self.devlist)
 
 class _OpenUSB(usb.backend.IBackend):
     @methodtrace(_logger)
@@ -739,6 +748,7 @@ def get_backend(find_library=None):
             _lib = _load_library(find_library)
             _setup_prototypes(_lib)
             _ctx = _Context()
+        _logger.warning('OpenUSB backend deprecated (https://github.com/pyusb/pyusb/issues/284)')
         return _OpenUSB()
     except usb.libloader.LibraryException:
         # exception already logged (if any)
