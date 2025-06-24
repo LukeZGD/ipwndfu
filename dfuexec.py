@@ -1,4 +1,4 @@
-import binascii, datetime, hashlib, struct, sys, time
+import binascii, datetime, hashlib, platform, struct, sys, time
 import usb  # pyusb: use 'pip install pyusb' to install this module
 import dfu, recovery, image3, image3_24Kpwn, utilities
 
@@ -71,7 +71,8 @@ class PwnedDFUDevice():
         assert self.identifier == device.serial_number
 
         dfu.reset_counters(device)
-        dfu.usb_reset(device)
+        if platform.mac_ver()[2] != 'x86_64':
+            dfu.usb_reset(device)
         dfu.send_data(device, EXEC_MAGIC + cmd)
         dfu.request_image_validation(device)
         dfu.release_device(device)
