@@ -4,13 +4,14 @@
 
 import binascii, datetime, getopt, hashlib, struct, sys, time
 import dfu, nor, utilities
-import alloc8, image3_24Kpwn
+import alloc8, image3_24Kpwn, checkm8
 from dfuexec import *
 
 def print_help():
     print('USAGE: ipwndfu [options]')
     print('Interact with an iOS device in DFU Mode.\n')
     print('Basic options:')
+    print('  -p\t\t\t\tUSB exploit for pwned DFU Mode')
     print('  -x\t\t\t\tinstall alloc8 exploit to NOR')
     print('Advanced options:')
     print('  --dump-nor=file\t\tdump NOR to file')
@@ -21,7 +22,7 @@ def print_help():
 if __name__ == '__main__':
     try:
         advanced = ['dump-nor=', 'flash-nor=', 'remove-24kpwn', 'remove-alloc8']
-        opts, args = getopt.getopt(sys.argv[1:], 'x', advanced)
+        opts, args = getopt.getopt(sys.argv[1:], 'px', advanced)
     except getopt.GetoptError:
         print('ERROR: Invalid arguments provided.')
         print_help()
@@ -32,6 +33,34 @@ if __name__ == '__main__':
         sys.exit(2)
 
     for opt, arg in opts:
+        if opt == '-p':
+            device = dfu.acquire_device()
+            serial_number = device.serial_number
+            dfu.release_device(device)
+
+            if 'CPID:8947' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8950' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8955' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8960' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8002' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8004' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8010' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8011' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8015' in serial_number:
+                checkm8.exploit()
+            else:
+                print('Found:', serial_number)
+                print('ERROR: This device is not supported.')
+                sys.exit(1)
+
         if opt == '-x':
             device = PwnedDFUDevice()
 
