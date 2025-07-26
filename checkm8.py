@@ -458,7 +458,7 @@ def all_exploit_configs():
   t8011_nop_gadget = 0x10000CD0C
   t8015_nop_gadget = 0x10000A9C4
 
-  t7002_overwrite    = b'\0' * 0x660 + struct.pack('<20xI4x', 0x34000000)
+  t7002_overwrite    = b'\0' * 0x300 + struct.pack('<20xI', 0x46018000)
   s5l8947x_overwrite = b'\0' * 0x660 + struct.pack('<20xI4x', 0x34000000)
   s5l895xx_overwrite = b'\0' * 0x640 + struct.pack('<20xI4x', 0x10000000)
   t800x_overwrite    = b'\0' * 0x5C0 + struct.pack('<20xI4x', 0x48818000)
