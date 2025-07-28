@@ -478,7 +478,7 @@ def all_exploit_configs():
   t8015_overwrite_offset    = 0x500
 
   return [
-    DeviceConfig('iBoot-2098.0.0.2.4',    0x7002, None,    t7002_overwrite, t7002_overwrite_offset    80,    3), # T7002
+    DeviceConfig('iBoot-2098.0.0.2.4',    0x7002, None,    t7002_overwrite, t7002_overwrite_offset,    80,    3), # T7002
     DeviceConfig('iBoot-1458.2',          0x8947,  626, s5l8947x_overwrite, s5l8947x_overwrite_offset, None, None), # S5L8947 (DFU loop)     1.97 seconds
     DeviceConfig('iBoot-1145.3'  ,        0x8950,  659, s5l895xx_overwrite, s5l895xx_overwrite_offset, None, None), # S5L8950 (buttons)      2.30 seconds
     DeviceConfig('iBoot-1145.3.3',        0x8955,  659, s5l895xx_overwrite, s5l895xx_overwrite_offset, None, None), # S5L8955 (buttons)      2.30 seconds
