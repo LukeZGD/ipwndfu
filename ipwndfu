@@ -38,7 +38,9 @@ if __name__ == '__main__':
             serial_number = device.serial_number
             dfu.release_device(device)
 
-            if 'CPID:8947' in serial_number:
+            if 'CPID:7002' in serial_number:
+                checkm8.exploit()
+            elif 'CPID:8947' in serial_number:
                 checkm8.exploit()
             elif 'CPID:8950' in serial_number:
                 checkm8.exploit()
