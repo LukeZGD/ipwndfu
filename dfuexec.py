@@ -169,6 +169,12 @@ class PwnedDFUDevice():
         ]
         patchediBSS = decryptediBSS[:64] + utilities.apply_patches(decryptediBSS[64:], n88ap_iBSS_435_patches)
 
+        sys.exit(1)
+
+        print('Waiting for iBSS to enter Recovery Mode.')
+        device = recovery.acquire_device()
+        recovery.release_device(device)
+
         device = dfu.acquire_device()
         assert self.identifier == device.serial_number
         dfu.reset_counters(device)

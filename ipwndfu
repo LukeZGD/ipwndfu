@@ -18,10 +18,11 @@ def print_help():
     print('  --flash-nor=file\t\tflash NOR (header and firmware only) from file')
     print('  --remove-24kpwn\t\tremove 24Kpwn exploit from NOR')
     print('  --remove-alloc8\t\tremove alloc8 exploit from NOR')
+    print('  --add-alloc8-to-dump\t\tadd alloc8 exploit to NOR dump file')
 
 if __name__ == '__main__':
     try:
-        advanced = ['dump-nor=', 'flash-nor=', 'remove-24kpwn', 'remove-alloc8']
+        advanced = ['dump-nor=', 'flash-nor=', 'remove-24kpwn', 'remove-alloc8', 'add-alloc8-to-dump=']
         opts, args = getopt.getopt(sys.argv[1:], 'px', advanced)
     except getopt.GetoptError:
         print('ERROR: Invalid arguments provided.')
@@ -89,6 +90,35 @@ if __name__ == '__main__':
             new_nor = alloc8.exploit(nor_data, device.config.version)
 
             device.flash_nor(new_nor.dump())
+
+        if opt == '--add-alloc8-to-dump':
+            device = PwnedDFUDevice()
+
+            if device.config.version == '359.3':
+                print('WARNING: iPhone 3GS (old bootrom) was detected. Use 24Kpwn exploit for faster boots, alloc8 exploit is for testing purposes only.')
+                input("Press ENTER to continue.")
+
+            print('Adding alloc8 exploit to NOR dump file:', arg)
+            with open(arg, 'rb') as f:
+                dump = f.read()
+            if dump[:4] != b'2GMI':  # reversed 'IMG2'
+                print('ERROR: Bad IMG2 header magic. This is not a valid NOR. Exiting.')
+                sys.exit(1)
+
+            nor_data = nor.NorData(dump)
+
+            for byte in nor_data.parts[1]:
+                if byte != 0:
+                    print('ERROR: Bytes following IMG2 header in NOR are not zero. alloc8 exploit was likely previously installed. Exiting.')
+                    sys.exit(1)
+
+            print('Preparing modified NOR with alloc8 exploit.')
+            nor_data.images[0] = image3_24Kpwn.remove_exploit(nor_data.images[0])
+            new_nor = alloc8.exploit(nor_data, device.config.version)
+
+            with open('new_nor_dump', 'wb') as f:
+                f.write(nor_data)
+            print('Modified NOR dumped to file: %s' % 'new_nor_dump')
 
         if opt == '--dump-nor':
             device = PwnedDFUDevice()
