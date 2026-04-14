@@ -4,7 +4,7 @@
 
 import binascii, datetime, getopt, hashlib, struct, sys, time
 import dfu, nor, utilities
-import alloc8, image3_24Kpwn, checkm8
+import alloc8, image3_24Kpwn, checkm8, limera1n
 from dfuexec import *
 
 def print_help():
@@ -40,6 +40,12 @@ if __name__ == '__main__':
 
             if 'CPID:7002' in serial_number:
                 checkm8.exploit()
+            elif 'CPID:8920' in serial_number:
+                limera1n.exploit()
+            elif 'CPID:8922' in serial_number:
+                limera1n.exploit()
+            elif 'CPID:8930' in serial_number:
+                limera1n.exploit()
             elif 'CPID:8947' in serial_number:
                 checkm8.exploit()
             elif 'CPID:8950' in serial_number:
