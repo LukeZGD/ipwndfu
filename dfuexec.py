@@ -71,8 +71,15 @@ class PwnedDFUDevice():
         assert self.identifier == device.serial_number
 
         dfu.reset_counters(device)
+
         if platform.mac_ver()[2] != 'x86_64':
             dfu.usb_reset(device)
+
+        dfu.release_device(device)
+
+        device = dfu.acquire_device()
+        assert self.identifier == device.serial_number
+
         dfu.send_data(device, EXEC_MAGIC + cmd)
         dfu.request_image_validation(device)
         dfu.release_device(device)
@@ -85,6 +92,7 @@ class PwnedDFUDevice():
         requiredLength = 0x8 + receiveLength
         requiredLength = requiredLength if requiredLength % 0x800 == 0 else (requiredLength // 0x800) * 0x800 + 0x800
         received = dfu.get_data(device, requiredLength)
+
         dfu.release_device(device)
 
         (exec_cleared, retval) = struct.unpack('<2I', received[:8])
