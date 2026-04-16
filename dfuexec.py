@@ -144,8 +144,6 @@ class PwnedDFUDevice():
         dfu.request_image_validation(device)
         dfu.release_device(device)
 
-        time.sleep(0.5)
-
         device = dfu.acquire_device()
         assert self.identifier == device.serial_number
 
