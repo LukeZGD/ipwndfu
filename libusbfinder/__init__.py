@@ -16,9 +16,9 @@ configs = [
     VersionConfig(
         version='14.0',
         bottle='libusb-1.0.28.sonoma.bottle',
-        bottle_sha256='1f2de0243e7dd67d4cf6c5fde24fa146db8681d287ad6db6af45d6dc544f36c8',
+        bottle_sha256='8e05f3f1e40b63df103f0e5221f77faee99c99278d15d1f90cabce2dc203afb5',
         dylib_patches=[],
-        dylib_sha256='4eb8d2cb5a75a84a3a038d168b643b1aa19a3f319955c9b71ea70eb5355f624d'),
+        dylib_sha256='7844e80b28409c28a286bfc953a173c8e2e0223f0bc9345094f42f591c1bd582'),
     VersionConfig(
         version='10.14',
         bottle='libusb-1.0.22.mojave.bottle',
